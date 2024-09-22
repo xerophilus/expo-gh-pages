@@ -30,7 +30,19 @@
       "expo-router"
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "baseUrl": "/expo-gh-pages"
+    },
+    "extra": {
+      "firebase": {
+        "apiKey": "AIzaSyBWQ40NnSo1Ou4cM5u31Qgiari8Km19ZNA",
+        "authDomain": "alphaorbit-2cf88.firebaseapp.com",
+        "projectId": "alphaorbit-2cf88",
+        "storageBucket": "alphaorbit-2cf88.appspot.com",
+        "messagingSenderId": "464364454067",
+        "appId": "1:464364454067:web:a728187dfade63d7aff0c6",
+        "measurementId": "G-JB1FVPQYV5"
+      }
     }
   }
 }
