@@ -39,7 +39,6 @@ console.log(authed)
     return (
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack>
-          <Stack.Screen name="/" options={{ headerShown: false }} />
           <Stack.Screen name="login" options={{ headerShown: false }} />
           <Stack.Screen name="sign-up" options={{ headerShown: false }} />
           <Stack.Screen name="forgot-password" options={{ headerShown: false }} />

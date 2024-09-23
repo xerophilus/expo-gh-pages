@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { LineChart } from 'react-native-chart-kit'; // Import LineChart from react-native-chart-kit
 import Icon from '@expo/vector-icons/FontAwesome5'; // Import FontAwesome icons
 import axios from 'axios';
+import { Checkbox } from 'react-native-paper'; // Make sure to install this package
 
 const DashboardScreen = () => {
   const [search, setSearch] = useState('');
@@ -39,16 +40,16 @@ const DashboardScreen = () => {
     },
   ]);
 
-  const API_KEY = 'SVG1I5VSRGQF5I2Z';
+  const API_KEY = 'uTTgIOsbzexCpY8Smz9olz8SPAOj3ETu'; // Replace with your actual API key
 
   const getSuggestions = async (text) => {
     if (text.length > 0) {
       try {
-        const response = await axios.get(`https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=${text}&apikey=${API_KEY}`);
-        const matches = response.data.bestMatches || [];
+        const response = await axios.get(`https://financialmodelingprep.com/api/v3/search?query=${text}&limit=10&exchange=NASDAQ&apikey=${API_KEY}`);
+        const matches = response.data || [];
         setSuggestions(matches.map(match => ({
-          ticker: match['1. symbol'],
-          name: match['2. name']
+          ticker: match.symbol,
+          name: match.name
         })));
       } catch (error) {
         console.error('Error fetching suggestions:', error);
@@ -63,10 +64,10 @@ const DashboardScreen = () => {
     getSuggestions(text);
   };
 
-  const selectSuggestion = (item) => {
-    setSearch(item.ticker);
+  const selectSuggestion = async (item) => {
+    setSearch('');
     setSuggestions([]);
-    searchStocks(item.ticker);
+    await searchStocks(item.ticker);
   };
 
   // Set the webpage title when the component mounts
@@ -78,20 +79,16 @@ const DashboardScreen = () => {
     
   }, []);
 
-  const searchStocks = async () => {
-    if (search.trim() === '') {
-      // Reset to default stocks if search is empty
-      setStocks([
-        // ... default stocks ...
-      ]);
-      return;
-    }
+  const searchStocks = async (ticker: string) => {
+    if (!ticker) return;
 
     try {
-      const response = await axios.get(`https://us-central1-alphaorbit-2cf88.cloudfunctions.net/analyzeStockByTicker?ticker=${search.toUpperCase()}`);
-      const stockData = response.data;
-      
-      setStocks([{
+      const response = await axios.post(`https://stock-analysis-65l7ntn3wq-uc.a.run.app`,
+        {tickers: ticker.toUpperCase()}
+      );
+      const stockData = response.data[0];
+      console.log(stockData);
+      const newStock = {
         ticker: stockData.ticker,
         companyName: stockData.companyName,
         percentageChange: stockData.percentageChange,
@@ -99,11 +96,40 @@ const DashboardScreen = () => {
         recommendation: stockData.recommendation,
         volatilityRating: stockData.volatilityRating,
         currentPrice: stockData.currentPrice,
-      }]);
+      };
+
+      setStocks(prevStocks => {
+        // Check if the stock already exists in the list
+        const stockExists = prevStocks.some(stock => stock.ticker === newStock.ticker);
+        if (stockExists) {
+          // If it exists, update it
+          return prevStocks.map(stock => 
+            stock.ticker === newStock.ticker ? newStock : stock
+          );
+        } else {
+          // If it doesn't exist, add it to the beginning of the list
+          return [newStock, ...prevStocks];
+        }
+      });
     } catch (error) {
       console.error('Error fetching stock data:', error);
       // Optionally, you can set an error state here to display to the user
     }
+  };
+
+  const [checkedStocks, setCheckedStocks] = useState<string[]>([]);
+
+  const toggleStockCheck = (ticker: string) => {
+    setCheckedStocks(prev => 
+      prev.includes(ticker)
+        ? prev.filter(t => t !== ticker)
+        : [...prev, ticker]
+    );
+  };
+
+  // Function to filter stocks for the chart
+  const getChartStocks = () => {
+    return stocks.filter(stock => checkedStocks.includes(stock.ticker));
   };
 
   return (
@@ -216,13 +242,13 @@ const DashboardScreen = () => {
               datasets: [
                 {
                   data: [1000, 1500, 2000, 3000, 2500, 3500, 4000, 4500, 3500, 4700],
-                  color: (opacity = 1) => `#6149CD`, // Color for the first line
-                  strokeWidth: 2, // Stroke width for the first line
+                  color: (opacity = 1) => `rgba(97, 73, 205, ${opacity})`, // Updated to rgba format
+                  strokeWidth: 2,
                 },
                 {
                   data: [1200, 1300, 1800, 2500, 2000, 3200, 3600, 4200, 3300, 4600],
-                  color: (opacity = 1) => `rgba(204, 204, 204, ${opacity})`, // Color for the second line
-                  strokeWidth: 2, // Stroke width for the second line
+                  color: (opacity = 1) => `rgba(204, 204, 204, ${opacity})`,
+                  strokeWidth: 2,
                 },
               ],
             }}
@@ -258,71 +284,62 @@ const DashboardScreen = () => {
           <View style={styles.tableHeader}>
             <View style={styles.searchContainer}>
               <TextInput 
-                style={styles.searchBar} 
-                placeholder="Search Company or Ticker(s)" 
-                onChangeText={handleSearchChange}
+                style={styles.searchBar}
+                placeholder="Search Company or Ticker(s)"
                 value={search}
+                onChangeText={handleSearchChange}
               />
               {suggestions.length > 0 && (
-                <FlatList
-                  data={suggestions}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity onPress={() => selectSuggestion(item)}>
-                      <Text style={styles.suggestionItem}>{item.ticker} - {item.name}</Text>
+                <ScrollView style={styles.suggestionsDropdown}>
+                  {suggestions.map((item, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={styles.suggestionItem}
+                      onPress={() => selectSuggestion(item)}
+                    >
+                      <Text style={styles.suggestionText}>{item.ticker} - {item.name}</Text>
                     </TouchableOpacity>
-                  )}
-                  keyExtractor={(item) => item.ticker}
-                  style={styles.suggestionList}
-                />
+                  ))}
+                </ScrollView>
               )}
-              <TouchableOpacity style={styles.searchButton} onPress={() => searchStocks(search)}>
-                <Text style={styles.searchButtonText}>Search</Text>
-              </TouchableOpacity>
             </View>
-            <View style={styles.tableActions}>
-              <TouchableOpacity style={styles.filterButton}>
-                <Text style={styles.filterText}>Filter</Text>
-                <Icon name="chevron-down" size={14} color="#888" />
-              </TouchableOpacity>
-              <Icon name="trash-alt" size={18} color="#888" style={styles.actionIcon} />
-              <Icon name="comment-dots" size={18} color="#888" style={styles.actionIcon} />
-            </View>
+            <TouchableOpacity style={styles.filterButton}>
+              <Text>Filter ▼</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconButton}>
+              <Text>🗑️</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconButton}>
+              <Text>💬</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Table Columns Header */}
           <View style={styles.tableColumns}>
-            <Text style={styles.columnText}>Company Name / Ticker</Text>
-            <Text style={styles.columnText}>+/- Gain</Text>
-            <Text style={styles.columnText}>Rating</Text>
-            <Text style={styles.columnText}>Signal</Text>
-            <Text style={styles.columnText}>Volatility</Text>
-            <Text style={styles.columnText}>Current Price</Text>
+            <Text style={styles.columnHeader}>Company Name / Ticker</Text>
+            <Text style={styles.columnHeader}>+/- Gain</Text>
+            <Text style={styles.columnHeader}>Rating</Text>
+            <Text style={styles.columnHeader}>Signal</Text>
+            <Text style={styles.columnHeader}>Volatility</Text>
+            <Text style={styles.columnHeader}>Current Price</Text>
           </View>
 
-          {/* Stock Rows */}
           {stocks.map((stock, index) => (
             <View key={index} style={styles.stockRow}>
+              <Checkbox
+                status={checkedStocks.includes(stock.ticker) ? 'checked' : 'unchecked'}
+                onPress={() => toggleStockCheck(stock.ticker)}
+              />
               <View style={styles.stockInfo}>
-                <View style={styles.stockDetails}>
-                  <Text style={styles.stockText}>{stock.companyName}</Text>
-                  <Text style={styles.stockSubText}>{stock.ticker}</Text>
-                </View>
+                <Text style={styles.stockName}>{stock.companyName}</Text>
+                <Text style={styles.stockTicker}>{stock.ticker}</Text>
               </View>
-              <Text style={stock.percentageChange > 0 ? styles.gainTextPositive : stock.percentageChange < 0 ? styles.gainTextNegative : styles.gainTextNeutral}>
-                {stock.percentageChange > 0 ? '+' : ''}{stock.percentageChange.toFixed(2)}%
+              <Text style={[styles.stockGain, { color: stock.percentageChange >= 0 ? 'green' : 'red' }]}>
+                {stock.percentageChange}%
               </Text>
-              <Text style={styles.ratingBadge}>{stock.finalGrade}</Text>
-              <Text style={
-                stock.recommendation === 'BUY' ? styles.signalBadgeBuy :
-                stock.recommendation === 'SELL' ? styles.signalBadgeSell :
-                styles.signalBadgeHold
-              }>{stock.recommendation}</Text>
-              <Text style={
-                stock.volatilityRating === 'High' ? styles.volatilityTextHigh :
-                stock.volatilityRating === 'Low' ? styles.volatilityTextLow :
-                styles.volatilityTextModerate
-              }>{stock.volatilityRating}</Text>
-              <Text style={styles.priceText}>${stock.currentPrice.toFixed(2)}</Text>
+              <Text style={styles.stockRating}>{stock.finalGrade}</Text>
+              <Text style={styles.stockSignal}>{stock.recommendation}</Text>
+              <Text style={styles.stockVolatility}>{stock.volatilityRating}</Text>
+              <Text style={styles.stockPrice}>${stock.currentPrice}</Text>
             </View>
           ))}
         </View>
@@ -587,10 +604,6 @@ const styles = StyleSheet.create({
     color: '#888',
     fontWeight: 'bold',
   },
-  stockPrice: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
   featuredSection: {
     width: '25%',
     padding: 20,
@@ -635,209 +648,95 @@ const styles = StyleSheet.create({
   },
   tableHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
+    zIndex: 500
   },
   searchContainer: {
     flex: 1,
     position: 'relative',
-    marginRight: 10,
   },
   searchBar: {
     height: 40,
-    borderColor: '#ddd',
     borderWidth: 1,
+    borderColor: '#ddd',
     borderRadius: 5,
     paddingHorizontal: 10,
-    backgroundColor: '#fff',
   },
-  suggestionList: {
+  suggestionsDropdown: {
     position: 'absolute',
-    top: 40,
+    top: 45,
     left: 0,
     right: 0,
-    backgroundColor: '#ffffff',
+    maxHeight: 200,
+    backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 5,
-    maxHeight: 200,
-    zIndex: 1,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
   },
   suggestionItem: {
     padding: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
-    backgroundColor: '#ffffff',
   },
-  searchButton: {
-    position: 'absolute',
-    right: 5,
-    top: 5,
-    backgroundColor: '#6B46C1',
-    paddingHorizontal: 15,
-    paddingVertical: 5,
-    borderRadius: 5,
-  },
-  searchButtonText: {
-    color: '#ffffff',
+  suggestionText: {
     fontSize: 14,
-  },
-  tableActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
   },
   filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 5,
-    marginRight: 10,
-  },
-  filterText: {
-    fontSize: 14,
-    color: '#888',
-    marginRight: 5,
-  },
-  actionIcon: {
     marginLeft: 10,
+    padding: 5,
+  },
+  iconButton: {
+    marginLeft: 10,
+    padding: 5,
   },
   tableColumns: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    backgroundColor: '#f0f0f0',
     paddingVertical: 10,
-    borderBottomColor: '#eee',
     borderBottomWidth: 1,
-    marginBottom: 10,
+    borderBottomColor: '#ddd',
   },
-  columnText: {
-    fontSize: 12,
-    color: '#888',
+  columnHeader: {
     flex: 1,
+    fontWeight: 'bold',
     textAlign: 'center',
   },
   stockRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingVertical: 10,
-    borderBottomColor: '#eee',
     borderBottomWidth: 1,
+    borderBottomColor: '#eee',
   },
   stockInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
     flex: 2,
   },
-  stockIcon: {
-    width: 30,
-    height: 30,
-    marginRight: 10,
-  },
-  stockDetails: {
-    flexDirection: 'column',
-  },
-  stockText: {
-    fontSize: 14,
+  stockName: {
     fontWeight: 'bold',
-    color: '#333',
   },
-  stockSubText: {
-    fontSize: 12,
-    color: '#888',
+  stockTicker: {
+    color: '#666',
   },
-  gainTextPositive: {
-    fontSize: 14,
-    color: '#48bb78',
+  stockGain: {
+    flex: 1,
+    textAlign: 'right',
+  },
+  stockRating: {
     flex: 1,
     textAlign: 'center',
   },
-  gainTextNegative: {
-    fontSize: 14,
-    color: '#f56565',
+  stockSignal: {
     flex: 1,
     textAlign: 'center',
   },
-  gainTextNeutral: {
-    fontSize: 14,
-    color: '#888',
+  stockVolatility: {
     flex: 1,
     textAlign: 'center',
   },
-  ratingBadge: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#fff',
-    backgroundColor: '#48bb78',
-    paddingVertical: 2,
-    borderRadius: 5,
+  stockPrice: {
     flex: 1,
-    textAlign: 'center',
-  },
-  signalBadgeBuy: {
-    backgroundColor: '#48bb78',
-    color: '#fff',
-    paddingVertical: 5,
-    marginHorizontal: 25,
-    borderRadius: 5,
-    fontSize: 12,
-    flex: 1,
-    textAlign: 'center',
-  },
-  signalBadgeSell: {
-    backgroundColor: '#f56565',
-    color: '#fff',
-    marginHorizontal: 25,
-    paddingVertical: 5,
-    borderRadius: 5,
-    fontSize: 12,
-    flex: 1,
-    textAlign: 'center',
-  },
-  signalBadgeHold: {
-    backgroundColor: '#CBD5E0',
-    color: '#fff',
-    marginHorizontal: 25,
-    paddingVertical: 5,
-    borderRadius: 5,
-    fontSize: 12,
-    flex: 1,
-    textAlign: 'center',
-  },
-  volatilityTextHigh: {
-    fontSize: 12,
-    color: '#f56565',
-    flex: 1,
-    textAlign: 'center',
-  },
-  volatilityTextLow: {
-    fontSize: 12,
-    color: '#48bb78',
-    flex: 1,
-    textAlign: 'center',
-  },
-  volatilityTextModerate: {
-    fontSize: 12,
-    color: '#ED8936',
-    flex: 1,
-    textAlign: 'center',
-  },
-  priceText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#333',
-    flex: 1,
-    textAlign: 'center',
+    textAlign: 'right',
   },
 });
 
